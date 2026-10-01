@@ -1,152 +1,42 @@
-import 'package:flutter/material.dart';
+name: Build Flutter Android APK
 
-void main() {
-  runApp(const MyApp());
-}
+on:
+  push:
+    branches: [ "main" ]
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Social Downloader',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const DownloadScreen(),
-    );
-  }
-}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-class DownloadScreen extends StatefulWidget {
-  const DownloadScreen({super.key});
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
 
-  @override
-  State<DownloadScreen> createState() => _DownloadScreenState();
-}
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.x'
+        channel: 'stable'
+        cache: true
 
-class _DownloadScreenState extends State<DownloadScreen> {
-  final TextEditingController _urlController = TextEditingController();
-  String _downloadType = 'video';
-  bool _isDownloading = false;
-  double _progress = 0.0;
-  String _statusText = 'جاهز للتحميل...';
+    - name: Create Flutter Project Structure
+      run: |
+        flutter create . --org com.socialdownloader --project-name social_downloader_android --platforms android
 
-  void _startDownload() {
-    final url = _urlController.text.trim();
-    if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى إدخال رابط صحيح!')),
-      );
-      return;
-    }
+    - name: Install dependencies
+      run: flutter pub get
 
-    setState(() {
-      _isDownloading = true;
-      _progress = 0.0;
-      _statusText = _downloadType == 'video' 
-          ? 'جاري تحميل الفيديو...' 
-          : 'جاري تحميل الصوت...';
-    });
+    - name: Build APK
+      run: flutter build apk --release
 
-    // ستحتاج هنا لربط منطق التحميل الفعلي
-    Future.delayed(const Duration(seconds: 3), () {
-      setState(() {
-        _progress = 1.0;
-        _isDownloading = false;
-        _statusText = 'تم التحميل بنجاح!';
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تم تحميل ${_downloadType == 'video' ? 'الفيديو' : 'الصوت'} بنجاح!')),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('برنامج تحميل وسائل التواصل'),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'أدخل الرابط:',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _urlController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'ألصق الرابط هنا...',
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'اختر صيغة التحميل:',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text('فيديو (MP4)'),
-                    value: 'video',
-                    groupValue: _downloadType,
-                    onChanged: (value) {
-                      setState(() {
-                        _downloadType = value!;
-                      });
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text('صوت (MP3)'),
-                    value: 'audio',
-                    groupValue: _downloadType,
-                    onChanged: (value) {
-                      setState(() {
-                        _downloadType = value!;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: _isDownloading ? null : _startDownload,
-              child: const Text(
-                'بدء التحميل',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 30),
-            if (_isDownloading || _progress > 0) ...[
-              LinearProgressIndicator(value: _progress),
-              const SizedBox(height: 10),
-              Text(
-                _statusText,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release
+        path: build/app/outputs/flutter-apk/app-release.apk
